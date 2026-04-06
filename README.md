@@ -1,31 +1,52 @@
+<div align="center">
+
+```
+ ___             _                            
+|  _|__ _ ___  | |_ _ _ ___ __ _ ___ _ __   
+| |/ _` / __| |  _| '_/ -_) _` / -_) \ /   
+|_|\__,_\___| _\__|_| \___\__, \___/_\_\    
+                           |___/             
+```
+
 # fastregex
 
-Index-accelerated regex search for large codebases. Builds a local trigram index over your codebase so regex queries skip irrelevant files entirely — instead of scanning every file like `grep`.
+*Index-accelerated regex search. Skip irrelevant files entirely.*
+
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
+[![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat)]()
+[![Speedup](https://img.shields.io/badge/Speedup-6--7x_faster-orange?style=flat)]()
+
+</div>
+
+---
+
+> **fastregex** builds a local trigram index over your codebase so regex queries skip irrelevant files entirely — instead of scanning every byte like `grep`. The bigger your codebase, the bigger the win.
+
+---
 
 ## Benchmark
 
 Tested on the Go standard library source (~10,000 files):
 
-| Tool | Time |
-|---|---|
-| `grep -rn` | 2.4 – 3.1s |
-| `fastregex search` | 0.4 – 0.9s |
+| Tool | Time | Files Scanned |
+|---|---|---|
+| `grep -rn` | 2.4 – 3.1s | All 10,000 |
+| `fastregex search` | 0.4 – 0.9s | ~50 candidates |
 
-**~6–7x faster**, growing with codebase size. Repeated queries get faster as the OS caches the mmap'd index.
+**6–7x faster** on 10k files. Grows with codebase size. Repeated queries get faster as the OS caches the mmap'd index in the page cache.
+
+---
 
 ## Install
 
 ```bash
-go install fastregex/cmd/fastregex@latest
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/yourname/fastregex
+git clone https://github.com/yanurag-dev/fastregex
 cd fastregex
 go build -o fastregex ./cmd/fastregex
 ```
+
+---
 
 ## Usage
 
@@ -41,7 +62,7 @@ fastregex build -root ./myproject -out .fastregex
 fastregex search -index .fastregex 'func.*Error'
 ```
 
-Output format is `file:line:text`, same as `grep -n`:
+Output is `file:line:text`, same as `grep -n`:
 
 ```
 internal/index/reader.go:25:func NewReader(dir string) (*Reader, error) {
@@ -59,33 +80,53 @@ fastregex search
   -index  <dir>    Index directory to query (default: .fastregex)
 ```
 
-## How it works
+---
 
-**Query flow:**
+## How It Works
+
 ```
-regex → extract trigrams → lookup index → intersect posting lists → candidate files → run regex on candidates only
+regex → trigram decomposition → index lookup → intersect posting lists → candidate files → verify with regex
 ```
 
-1. **Trigram decomposition** — the regex `func.*Error` contains literals `func` and `Error`. These produce trigrams: `fun unc` and `Err rro ror`.
-2. **Index lookup** — each trigram maps to a sorted list of file IDs that contain it (a posting list).
-3. **Intersection** — only files containing *all* trigrams are candidates. On a 10k-file codebase this typically reduces candidates from 10,000 → ~50.
-4. **Verification** — the real regex engine runs only on those 50 files.
+1. **Trigram decomposition** — `func.*Error` contains literals `func` and `Error`, producing trigrams `fun unc` and `Err rro ror`
+2. **Index lookup** — each trigram maps to a sorted posting list of file IDs that contain it
+3. **Intersection** — only files containing *all* required trigrams become candidates (10,000 → ~50)
+4. **Verification** — the real regex engine runs only on those ~50 files
 
-**No false negatives** — if a file matches the regex, it will always appear in the candidate set. The index may produce false positives (extra candidates), but the regex engine filters those out.
+**The golden invariant:** if a file matches the regex, it will always appear in the candidate set. No false negatives, ever.
 
-### Index files
+### Index on Disk
 
 ```
 .fastregex/
-  lookup.idx    mmap'd hash table: trigram → byte offset in postings.dat
-  postings.dat  posting lists: [count][fileID, fileID, ...]
+  lookup.idx    mmap'd hash table — trigram → byte offset in postings.dat
+  postings.dat  posting lists — [count][fileID, fileID, ...]
   files.idx     fileID → filepath mapping
 ```
 
-## Development
+Only `lookup.idx` is loaded into memory (mmap'd). Posting lists are read from disk on demand.
+
+---
+
+## Testing
+
+Run the dynamic test script to benchmark and verify correctness against `grep`:
 
 ```bash
-# Run tests
+# Test default patterns on this repo
+./scripts/test.sh
+
+# Test a single pattern
+./scripts/test.sh 'func.*Error'
+
+# Test on any large codebase
+./scripts/test.sh 'func.*Error' /path/to/large/repo
+```
+
+The script builds the binary, indexes the target directory, runs each pattern through both `grep` and `fastregex`, compares results, and reports speedup + any false negatives.
+
+```bash
+# Run unit + integration tests
 go test ./...
 
 # Run a specific test
@@ -95,4 +136,16 @@ go test ./internal/query/... -run TestCorrectnessVsGrep -v
 go test ./... -bench=.
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for full diagrams and design decisions.
+---
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full diagrams covering the index build pipeline, query flow, on-disk format, regex decomposition rules, and incremental sync strategy.
+
+---
+
+<div align="center">
+
+Built with Go · MIT License
+
+</div>

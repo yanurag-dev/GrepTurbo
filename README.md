@@ -1,13 +1,5 @@
 <div align="center">
 
-```
- ___             _                            
-|  _|__ _ ___  | |_ _ _ ___ __ _ ___ _ __   
-| |/ _` / __| |  _| '_/ -_) _` / -_) \ /   
-|_|\__,_\___| _\__|_| \___\__, \___/_\_\    
-                           |___/             
-```
-
 # fastregex
 
 *Index-accelerated regex search. Skip irrelevant files entirely.*

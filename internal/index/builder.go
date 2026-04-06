@@ -54,18 +54,40 @@ func (b *Builder) Add(path string) (uint32, error) {
 	return fileID, nil
 }
 
+// defaultSkipDirs are directories that should never be indexed.
+var defaultSkipDirs = map[string]bool{
+	"node_modules": true,
+	".git":         true,
+	".hg":          true,
+	"vendor":       true,
+	"dist":         true,
+	"build":        true,
+	".fastregex":   true,
+}
+
 // Build walks all files under rootDir and indexes each one.
+// Directories listed in skip are skipped entirely (e.g. "node_modules").
 // Directories and files that fail to read are silently skipped.
-func (b *Builder) Build(rootDir string) error {
+func (b *Builder) Build(rootDir string, skip ...string) error {
+	skipSet := make(map[string]bool)
+	for k, v := range defaultSkipDirs {
+		skipSet[k] = v
+	}
+	for _, s := range skip {
+		skipSet[s] = true
+	}
+
 	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// Directory entry unreadable — skip it
 			return nil
 		}
 		if d.IsDir() {
+			if skipSet[d.Name()] {
+				return filepath.SkipDir
+			}
 			return nil
 		}
-		b.Add(path) // errors (binary, too large) are intentionally ignored
+		b.Add(path)
 		return nil
 	})
 }

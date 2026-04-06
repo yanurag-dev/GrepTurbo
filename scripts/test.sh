@@ -22,15 +22,25 @@ PATTERN="${1:-}"
 TARGET_DIR="${2:-$(pwd)}"
 INDEX_DIR="$(mktemp -d)/fastregex-index"
 
-# Default patterns when none provided
-DEFAULT_PATTERNS=(
-  "func"
-  "error"
-  "TODO"
-  "func.*error"
-  "return nil"
-  "uint32"
-)
+# Detect language of target directory and pick appropriate patterns
+detect_patterns() {
+  local dir="$1"
+  local ts_count go_count
+
+  ts_count=$(find "$dir" -name '*.ts' -not -path '*/node_modules/*' 2>/dev/null | wc -l | tr -d ' ')
+  go_count=$(find "$dir" -name '*.go' 2>/dev/null | wc -l | tr -d ' ')
+
+  if [[ $ts_count -gt $go_count ]]; then
+    echo "TypeScript repo detected ($ts_count .ts files)" >&2
+    echo "const|interface|async function|export default|import.*from|=>|throw new Error|console\.log"
+  else
+    echo "Go repo detected ($go_count .go files)" >&2
+    echo "func|error|TODO|func.*error|return nil|uint32"
+  fi
+}
+
+# Default patterns — auto-detected based on target directory
+IFS='|' read -ra DEFAULT_PATTERNS <<< "$(detect_patterns "$TARGET_DIR")"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

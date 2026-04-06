@@ -4,10 +4,17 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"fastregex/internal/index"
 	"fastregex/internal/query"
 )
+
+// multiFlag allows -skip to be specified multiple times
+type multiFlag []string
+
+func (m *multiFlag) String() string  { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 
 const defaultIndexDir = ".fastregex"
 
@@ -16,6 +23,8 @@ func main() {
 	buildCmd := flag.NewFlagSet("build", flag.ExitOnError)
 	buildRoot := buildCmd.String("root", ".", "root directory to index")
 	buildOut := buildCmd.String("out", defaultIndexDir, "directory to write the index")
+	var buildSkip multiFlag
+	buildCmd.Var(&buildSkip, "skip", "directory name to skip (repeatable, e.g. -skip node_modules)")
 
 	searchCmd := flag.NewFlagSet("search", flag.ExitOnError)
 	searchIdx := searchCmd.String("index", defaultIndexDir, "index directory to query")
@@ -28,7 +37,7 @@ func main() {
 	switch os.Args[1] {
 	case "build":
 		buildCmd.Parse(os.Args[2:])
-		runBuild(*buildRoot, *buildOut)
+		runBuild(*buildRoot, *buildOut, buildSkip)
 
 	case "search":
 		searchCmd.Parse(os.Args[2:])
@@ -45,11 +54,11 @@ func main() {
 	}
 }
 
-func runBuild(root, outDir string) {
+func runBuild(root, outDir string, skip []string) {
 	fmt.Fprintf(os.Stderr, "Building index for %s → %s\n", root, outDir)
 
 	b := index.NewBuilder()
-	if err := b.Build(root); err != nil {
+	if err := b.Build(root, skip...); err != nil {
 		fmt.Fprintf(os.Stderr, "error walking directory: %v\n", err)
 		os.Exit(1)
 	}
@@ -96,11 +105,12 @@ Commands:
   search  Query the index with a regex pattern
 
 Usage:
-  fastregex build  [-root <dir>] [-out <index-dir>]
+  fastregex build  [-root <dir>] [-out <index-dir>] [-skip <dir>]
   fastregex search [-index <index-dir>] <pattern>
 
 Examples:
   fastregex build -root ./myproject -out .fastregex
+  fastregex build -root . -skip node_modules -skip dist
   fastregex search -index .fastregex 'func.*Error'
   fastregex search 'TODO'`)
 }

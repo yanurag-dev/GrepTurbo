@@ -9,26 +9,26 @@ import (
 // List maps each trigram to a sorted slice of file IDs that contain it.
 type List map[trigram.T][]uint32
 
-// Add records that fileID contains trigram t.
-// The slice is kept sorted and deduplicated.
-func (l List) Add(t trigram.T, fileID uint32) {
-	ids := l[t]
+// AddBatch appends fileIDs without sorting.
+// Call Finalize() after all AddBatch calls to sort and dedup.
+func (l List) AddBatch(t trigram.T, fileIDs []uint32) {
+	existing := l[t]
+	l[t] = append(existing, fileIDs...)
+}
 
-	// Find the insertion point using binary search
-	pos := sort.Search(len(ids), func(i int) bool {
-		return ids[i] >= fileID
-	})
-
-	// Already present — skip
-	if pos < len(ids) && ids[pos] == fileID {
-		return
+// Finalize sorts and deduplicates all posting lists in-place.
+// Call after all AddBatch calls are done.
+func (l List) Finalize() {
+	for t, ids := range l {
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		out := ids[:0]
+		for _, id := range ids {
+			if len(out) == 0 || out[len(out)-1] != id {
+				out = append(out, id)
+			}
+		}
+		l[t] = out
 	}
-
-	// Insert at pos, shifting elements right
-	ids = append(ids, 0)
-	copy(ids[pos+1:], ids[pos:])
-	ids[pos] = fileID
-	l[t] = ids
 }
 
 // Get returns the sorted file IDs for trigram t, or nil if none.

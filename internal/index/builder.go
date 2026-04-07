@@ -48,7 +48,7 @@ func (b *Builder) Add(path string) (uint32, error) {
 	b.Files = append(b.Files, path)
 
 	for _, t := range trigram.Extract(string(data)) {
-		b.Posts.Add(t, fileID)
+		b.Posts.AddBatch(t, []uint32{fileID})
 	}
 
 	return fileID, nil
@@ -77,7 +77,7 @@ func (b *Builder) Build(rootDir string, skip ...string) error {
 		skipSet[s] = true
 	}
 
-	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -90,4 +90,9 @@ func (b *Builder) Build(rootDir string, skip ...string) error {
 		b.Add(path)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	b.Posts.Finalize()
+	return nil
 }

@@ -1,6 +1,7 @@
 package index
 
 import (
+	"bufio"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ const slotSize = 8 // 4 bytes trigram value + 4 bytes offset into postings.dat
 //	postings.dat — sequential posting list records: [count uint32][fileID uint32 ...]
 //	lookup.idx   — fixed-size open-addressing hash table: [trigram uint32][offset uint32]
 //	files.idx    — one filepath per line; line number (0-based) == fileID
-func Write(b *Builder, dir string) error {
+func Write(b *Builder, dir string) (err error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -29,6 +30,10 @@ func Write(b *Builder, dir string) error {
 	}
 	defer pf.Close()
 
+	// Use buffered writer to batch small writes into larger kernel calls.
+	// Without this, each 4-byte write (count + each fileID) is a separate syscall.
+	w := bufio.NewWriter(pf)
+
 	// offsets maps each trigram to its starting byte offset in postings.dat
 	offsets := make(map[trigram.T]uint32)
 	var cursor uint32
@@ -40,7 +45,7 @@ func Write(b *Builder, dir string) error {
 
 		// Write count
 		binary.LittleEndian.PutUint32(buf, uint32(len(ids)))
-		if _, err := pf.Write(buf); err != nil {
+		if _, err := w.Write(buf); err != nil {
 			return err
 		}
 		cursor += 4
@@ -48,11 +53,18 @@ func Write(b *Builder, dir string) error {
 		// Write each fileID
 		for _, id := range ids {
 			binary.LittleEndian.PutUint32(buf, id)
-			if _, err := pf.Write(buf); err != nil {
+			if _, err := w.Write(buf); err != nil {
 				return err
 			}
 			cursor += 4
 		}
+	}
+
+	// Flush the buffered writer to ensure all postings data is written to disk.
+	// This must happen before we start writing lookup.idx, since we need the
+	// final file offsets to be stable.
+	if err := w.Flush(); err != nil {
+		return err
 	}
 
 	// ── Step 2: write lookup.idx (open-addressing hash table) ──────────────

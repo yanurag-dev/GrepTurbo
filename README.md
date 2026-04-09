@@ -8,6 +8,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
 [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat)]()
 [![Speedup](https://img.shields.io/badge/Speedup-6--7x_faster-orange?style=flat)]()
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/yanurag-dev/fastregex)
 
 </div>
 

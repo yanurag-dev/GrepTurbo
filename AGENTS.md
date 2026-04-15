@@ -26,7 +26,7 @@ go test ./... -bench=.
 
 ## Architecture
 
-FastRegex builds a local inverted index over a codebase so regex queries skip irrelevant files instead of scanning everything like `ripgrep`. See `ARCHITECTURE.md` for full diagrams.
+GrepTurbo builds a local inverted index over a codebase so regex queries skip irrelevant files instead of scanning everything like `ripgrep`. See `ARCHITECTURE.md` for full diagrams.
 
 **Query flow:** regex → trigram decomposition → posting list lookup → intersect → candidate files → run regex engine only on candidates.
 

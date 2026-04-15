@@ -6,8 +6,8 @@ import (
 	"os"
 	"regexp"
 
-	"fastregex/internal/index"
-	"fastregex/internal/posting"
+	"grepturbo/internal/index"
+	"grepturbo/internal/posting"
 )
 
 // Match represents a single line match within a file.

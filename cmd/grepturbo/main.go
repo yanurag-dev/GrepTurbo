@@ -6,17 +6,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"fastregex/internal/index"
-	"fastregex/internal/query"
+	"grepturbo/internal/index"
+	"grepturbo/internal/query"
 )
 
-const defaultIndexDir = ".fastregex"
+const defaultIndexDir = ".grepturbo"
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "fastregex",
+		Use:   "grepturbo",
 		Short: "Index-accelerated regex search",
-		Long:  "fastregex — build a trigram index over a codebase and query it with regex patterns.",
+		Long:  "grepturbo — build a trigram index over a codebase and query it with regex patterns.",
 	}
 
 	// build subcommand
@@ -26,13 +26,13 @@ func main() {
 	buildCmd := &cobra.Command{
 		Use:   "build",
 		Short: "Walk a directory and build the search index",
-		Example: `  fastregex build -root ./myproject -out .fastregex
-  fastregex build -root . --skip node_modules --skip dist`,
+		Example: `  grepturbo build -root ./myproject -out .grepturbo
+  grepturbo build -root . --skip node_modules --skip dist`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBuild(buildRoot, buildOut, buildSkip)
 		},
 	}
-	buildCmd.Flags().StringVar(&buildRoot, "root", ".", "root directory to index")
+	buildCmd.Flags().StringVarP(&buildRoot, "root", "r", ".", "root directory to index")
 	buildCmd.Flags().StringVar(&buildOut, "out", defaultIndexDir, "directory to write the index")
 	buildCmd.Flags().StringArrayVar(&buildSkip, "skip", nil, "directory name to skip (repeatable)")
 
@@ -42,14 +42,14 @@ func main() {
 	searchCmd := &cobra.Command{
 		Use:   "search <pattern>",
 		Short: "Query the index with a regex pattern",
-		Example: `  fastregex search -index .fastregex 'func.*Error'
-  fastregex search 'TODO'`,
+		Example: `  grepturbo search -index .grepturbo 'func.*Error'
+  grepturbo search 'TODO'`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSearch(searchIdx, args[0])
 		},
 	}
-	searchCmd.Flags().StringVar(&searchIdx, "index", defaultIndexDir, "index directory to query")
+	searchCmd.Flags().StringVarP(&searchIdx, "index", "i", defaultIndexDir, "index directory to query")
 
 	rootCmd.AddCommand(buildCmd, searchCmd)
 

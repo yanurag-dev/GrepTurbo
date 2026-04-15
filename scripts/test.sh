@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test.sh — build, index, search, and compare fastregex against grep
+# test.sh — build, index, search, and compare GrepTurbo against grep
 #
 # Usage:
 #   ./scripts/test.sh                          # run default patterns on this repo
@@ -20,7 +20,7 @@ RESET='\033[0m'
 # ── args ──────────────────────────────────────────────────────────────────────
 PATTERN="${1:-}"
 TARGET_DIR="${2:-$(pwd)}"
-INDEX_DIR="$(mktemp -d)/fastregex-index"
+INDEX_DIR="$(mktemp -d)/GrepTurbo-index"
 
 # Detect language of target directory and pick appropriate patterns
 detect_patterns() {
@@ -44,7 +44,7 @@ IFS='|' read -ra DEFAULT_PATTERNS <<< "$(detect_patterns "$TARGET_DIR")"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BINARY="$REPO_ROOT/fastregex"
+BINARY="$REPO_ROOT/GrepTurbo"
 
 cleanup() {
   rm -rf "$INDEX_DIR" "$BINARY" 2>/dev/null || true
@@ -59,7 +59,7 @@ elapsed() {
 
 print_header() {
   echo -e "\n${BOLD}${CYAN}══════════════════════════════════════════${RESET}"
-  echo -e "${BOLD}${CYAN}  fastregex test runner${RESET}"
+  echo -e "${BOLD}${CYAN}  GrepTurbo test runner${RESET}"
   echo -e "${BOLD}${CYAN}══════════════════════════════════════════${RESET}"
   echo -e "  Target : ${BOLD}$TARGET_DIR${RESET}"
   echo -e "  Index  : ${BOLD}$INDEX_DIR${RESET}"
@@ -68,9 +68,9 @@ print_header() {
 
 # ── step 1: build binary ──────────────────────────────────────────────────────
 build_binary() {
-  echo -e "${BOLD}[1/3] Building fastregex...${RESET}"
+  echo -e "${BOLD}[1/3] Building GrepTurbo...${RESET}"
   cd "$REPO_ROOT"
-  if go build -o "$BINARY" ./cmd/fastregex 2>&1; then
+  if go build -o "$BINARY" ./cmd/GrepTurbo 2>&1; then
     echo -e "${GREEN}      ✓ Build succeeded${RESET}"
   else
     echo -e "${RED}      ✗ Build failed${RESET}"
@@ -94,7 +94,7 @@ run_pattern() {
   echo -e "\n${BOLD}  Pattern: ${YELLOW}$pattern${RESET}"
   echo -e "  ────────────────────────────────────"
 
-  # ── fastregex ──
+  # ── GrepTurbo ──
   local fr_start fr_end fr_time fr_count
   fr_start=$(date +%s%N)
   "$BINARY" search -index "$INDEX_DIR" "$pattern" > /tmp/fr_results 2>/dev/null || true
@@ -109,11 +109,11 @@ run_pattern() {
   grep_end=$(date +%s%N)
   grep_time=$(( (grep_end - grep_start) / 1000000 )) # ms
 
-  # Normalise grep output to match fastregex format for comparison
+  # Normalise grep output to match GrepTurbo format for comparison
   grep_count=$(wc -l < /tmp/grep_results | tr -d ' ')
 
   # ── false negative check ──
-  # Every grep match must appear in fastregex output
+  # Every grep match must appear in GrepTurbo output
   local missed=0
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
@@ -133,7 +133,7 @@ run_pattern() {
 
   # ── print results ──
   printf "  %-12s %6s ms   %5s matches\n" "grep"      "$grep_time" "$grep_count"
-  printf "  %-12s %6s ms   %5s matches\n" "fastregex" "$fr_time"   "$fr_count"
+  printf "  %-12s %6s ms   %5s matches\n" "GrepTurbo" "$fr_time"   "$fr_count"
   echo ""
 
   if [[ $fr_time -lt $grep_time ]]; then

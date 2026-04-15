@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"fastregex/internal/trigram"
+	"grepturbo/internal/trigram"
 )
 
 // Reader holds the mmap'd lookup table and an open handle to postings.dat.

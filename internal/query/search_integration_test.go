@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"fastregex/internal/index"
-	"fastregex/internal/query"
+	"grepturbo/internal/index"
+	"grepturbo/internal/query"
 )
 
 // TestCorrectnessVsGrep is the golden test: every match that grep finds must

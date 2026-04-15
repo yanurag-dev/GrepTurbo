@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"fastregex/internal/trigram"
+	"grepturbo/internal/trigram"
 )
 
 const slotSize = 8 // 4 bytes trigram value + 4 bytes offset into postings.dat

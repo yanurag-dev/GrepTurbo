@@ -3,7 +3,7 @@ package posting
 import (
 	"sort"
 
-	"fastregex/internal/trigram"
+	"grepturbo/internal/trigram"
 )
 
 // List maps each trigram to a sorted slice of file IDs that contain it.

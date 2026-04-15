@@ -3,7 +3,7 @@ package query
 import (
 	"regexp/syntax"
 
-	"fastregex/internal/trigram"
+	"grepturbo/internal/trigram"
 )
 
 // Result holds the trigrams extracted from a regex pattern.

@@ -1,4 +1,4 @@
-module fastregex
+module grepturbo
 
 go 1.25.7
 

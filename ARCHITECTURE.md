@@ -1,8 +1,8 @@
-# FastRegex — Architecture
+# GrepTurbo — Architecture
 
 ## Overview
 
-FastRegex builds a local inverted index over a codebase so that regex queries
+GrepTurbo builds a local inverted index over a codebase so that regex queries
 can skip irrelevant files entirely, instead of scanning every file like `ripgrep` does.
 
 The index answers the question:

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"unicode/utf8"
 
-	"fastregex/internal/posting"
-	"fastregex/internal/trigram"
+	"grepturbo/internal/posting"
+	"grepturbo/internal/trigram"
 )
 
 const maxFileSize = 1 << 20 // 1 MB — skip files larger than this

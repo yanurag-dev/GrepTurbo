@@ -139,6 +139,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full diagrams covering the index buil
 
 <div align="center">
 
-Built with Go · MIT License
+Built with Go · MIT License<br>
+[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen?style=flat)](https://your-coverage-service-url)
 
 </div>

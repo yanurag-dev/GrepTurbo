@@ -9,7 +9,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"grepturbo/internal/index"
@@ -26,6 +28,11 @@ type result struct {
 	FinalizeMs    float64 `json:"finalize_ms"`
 	WriteMs       float64 `json:"write_ms"`
 	TotalMs       float64 `json:"total_ms"`
+}
+
+type extractResult struct {
+	path     string
+	trigrams []trigram.T
 }
 
 func main() {
@@ -51,6 +58,46 @@ func main() {
 
 	// ── Phase: walk + extract ─────────────────────────────────────────────────
 	walkStart := time.Now()
+
+	paths := make(chan string, 100)
+	results := make(chan extractResult, 100)
+
+	var wg sync.WaitGroup
+	numWorkers := runtime.GOMAXPROCS(0)
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range paths {
+				data, err := os.ReadFile(path)
+				if err != nil || !utf8.Valid(data) || len(data) > maxFileSize {
+					continue
+				}
+				results <- extractResult{
+					path:     path,
+					trigrams: trigram.Extract(string(data)),
+				}
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		for res := range results {
+			fileID := uint32(len(b.Files))
+			b.Files = append(b.Files, res.path)
+			for _, t := range res.trigrams {
+				b.Posts.AddBatch(t, []uint32{fileID})
+			}
+		}
+		close(done)
+	}()
+
 	filepath.WalkDir(*root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -61,19 +108,12 @@ func main() {
 			}
 			return nil
 		}
-
-		data, err := os.ReadFile(path)
-		if err != nil || !utf8.Valid(data) || len(data) > maxFileSize {
-			return nil
-		}
-
-		fileID := uint32(len(b.Files))
-		b.Files = append(b.Files, path)
-		for _, t := range trigram.Extract(string(data)) {
-			b.Posts.AddBatch(t, []uint32{fileID})
-		}
+		paths <- path
 		return nil
 	})
+	close(paths)
+	<-done
+
 	walkExtractMs := ms(time.Since(walkStart))
 
 	// ── Phase: finalize ───────────────────────────────────────────────────────

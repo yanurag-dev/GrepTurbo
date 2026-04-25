@@ -4,6 +4,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"unicode/utf8"
 
 	"grepturbo/internal/posting"
@@ -65,7 +67,12 @@ var defaultSkipDirs = map[string]bool{
 	".fastregex":   true,
 }
 
-// Build walks all files under rootDir and indexes each one.
+type extractResult struct {
+	path     string
+	trigrams []trigram.T
+}
+
+// Build walks all files under rootDir and indexes each one concurrently.
 // Directories listed in skip are skipped entirely (e.g. "node_modules").
 // Directories and files that fail to read are silently skipped.
 func (b *Builder) Build(rootDir string, skip ...string) error {
@@ -77,6 +84,48 @@ func (b *Builder) Build(rootDir string, skip ...string) error {
 		skipSet[s] = true
 	}
 
+	paths := make(chan string, 100)
+	results := make(chan extractResult, 100)
+
+	// Worker pool: read files and extract trigrams
+	var wg sync.WaitGroup
+	numWorkers := runtime.GOMAXPROCS(0)
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range paths {
+				data, err := os.ReadFile(path)
+				if err != nil || !utf8.Valid(data) || len(data) > maxFileSize {
+					continue
+				}
+				results <- extractResult{
+					path:     path,
+					trigrams: trigram.Extract(string(data)),
+				}
+			}
+		}()
+	}
+
+	// Signal workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collector: update Builder state (sequential, lock-free)
+	done := make(chan struct{})
+	go func() {
+		for res := range results {
+			fileID := uint32(len(b.Files))
+			b.Files = append(b.Files, res.path)
+			for _, t := range res.trigrams {
+				b.Posts.AddBatch(t, []uint32{fileID})
+			}
+		}
+		close(done)
+	}()
+
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -87,12 +136,16 @@ func (b *Builder) Build(rootDir string, skip ...string) error {
 			}
 			return nil
 		}
-		b.Add(path)
+		paths <- path
 		return nil
 	})
+	close(paths)
+
 	if err != nil {
 		return err
 	}
+
+	<-done
 	b.Posts.Finalize()
 	return nil
 }

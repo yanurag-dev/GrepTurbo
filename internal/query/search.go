@@ -24,7 +24,14 @@ type ErrCommitDrift struct {
 }
 
 func (e *ErrCommitDrift) Error() string {
-	return fmt.Sprintf("commit drift: index is at %s, but HEAD is at %s", e.Baseline[:7], e.Current[:7])
+	return fmt.Sprintf("commit drift: index is at %s, but HEAD is at %s", truncate(e.Baseline, 7), truncate(e.Current, 7))
+}
+
+func truncate(s string, n int) string {
+	if len(s) < n {
+		return s
+	}
+	return s[:n]
 }
 
 // Search runs a full regex query against the index.
@@ -36,7 +43,10 @@ func Search(r *index.Reader, pattern string) ([]Match, error) {
 		return nil, fmt.Errorf("sync error: %w", err)
 	}
 	if drift {
-		current, _ := index.CurrentCommit(r.Meta.RootDir)
+		current, err := index.CurrentCommit(r.Meta.RootDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current commit: %w", err)
+		}
 		return nil, &ErrCommitDrift{Baseline: r.Meta.Commit, Current: current}
 	}
 

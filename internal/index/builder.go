@@ -135,7 +135,7 @@ func (b *Builder) Build(rootDir string, skip ...string) error {
 		close(done)
 	}()
 
-	err = filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(absRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

@@ -33,10 +33,16 @@ Tested on the Go standard library source (~10,000 files):
 
 ## Install
 
+### Pre-compiled Binaries (Recommended)
+
+Download the latest binary for your platform from the [Releases](https://github.com/yanurag-dev/GrepTurbo/releases) page.
+
+### From Source
+
 ```bash
 git clone https://github.com/yanurag-dev/GrepTurbo
 cd GrepTurbo
-go build -o GrepTurbo ./cmd/GrepTurbo
+go build -o grepturbo ./cmd/grepturbo
 ```
 
 ---

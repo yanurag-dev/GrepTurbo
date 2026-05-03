@@ -86,7 +86,25 @@ func runSearch(idxDir, pattern string) error {
 
 	matches, err := query.Search(r, pattern)
 	if err != nil {
-		return fmt.Errorf("error searching: %w", err)
+		if drift, ok := err.(*query.ErrCommitDrift); ok {
+			fmt.Fprintf(os.Stderr, "Notice: %s. Rebuilding...\n", drift.Error())
+			r.Close() // close before rebuild
+			if err := runBuild(r.Meta.RootDir, idxDir, r.Meta.Skip); err != nil {
+				return err
+			}
+			// Re-open and try search again
+			r2, err := index.NewReader(idxDir)
+			if err != nil {
+				return err
+			}
+			defer r2.Close()
+			matches, err = query.Search(r2, pattern)
+			if err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("error searching: %w", err)
+		}
 	}
 
 	if len(matches) == 0 {

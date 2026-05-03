@@ -17,13 +17,39 @@ type Match struct {
 	Text string
 }
 
-// Search runs a full regex query against the index:
-//  1. Decompose pattern into trigrams
-//  2. Look up each trigram in the index → posting lists
-//  3. Intersect posting lists → candidate file IDs
-//  4. Run the compiled regex only on candidate files
-//  5. Return all line-level matches
+// ErrCommitDrift indicates that the index must be rebuilt.
+type ErrCommitDrift struct {
+	Baseline string
+	Current  string
+}
+
+func (e *ErrCommitDrift) Error() string {
+	return fmt.Sprintf("commit drift: index is at %s, but HEAD is at %s", truncate(e.Baseline, 7), truncate(e.Current, 7))
+}
+
+func truncate(s string, n int) string {
+	if len(s) < n {
+		return s
+	}
+	return s[:n]
+}
+
+// Search runs a full regex query against the index.
+// It performs a Git-based sync before searching to ensure results are real-time.
 func Search(r *index.Reader, pattern string) ([]Match, error) {
+	// ── Step 0: Sync with Git (Baseline + Overlay) ──────────────────────────
+	overlay, drift, err := r.Sync()
+	if err != nil {
+		return nil, fmt.Errorf("sync error: %w", err)
+	}
+	if drift {
+		current, err := index.CurrentCommit(r.Meta.RootDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current commit: %w", err)
+		}
+		return nil, &ErrCommitDrift{Baseline: r.Meta.Commit, Current: current}
+	}
+
 	// ── Step 1: decompose regex into trigrams ────────────────────────────────
 	decomp, err := Decompose(pattern)
 	if err != nil {
@@ -41,33 +67,62 @@ func Search(r *index.Reader, pattern string) ([]Match, error) {
 
 	if decomp.Wildcard || len(decomp.Trigrams) == 0 {
 		// No trigrams extracted — must scan every file
-		candidates = r.Files
+		// Filter out deleted files (Tombstones) from Baseline
+		for _, p := range r.Files {
+			if !overlay.Tombstones[p] {
+				candidates = append(candidates, p)
+			}
+		}
+		// Add all Overlay files
+		candidates = append(candidates, overlay.Files...)
 	} else {
-		// Look up each trigram and collect its posting list
-		var lists [][]uint32
+		// 3A: Baseline Candidates
+		var baselineLists [][]uint32
+		missingInBaseline := false
 		for _, t := range decomp.Trigrams {
 			ids, err := r.Lookup(t)
 			if err != nil {
 				return nil, fmt.Errorf("lookup trigram %s: %w", t, err)
 			}
 			if len(ids) == 0 {
-				// This trigram appears in no file — no candidates possible
-				return nil, nil
+				missingInBaseline = true
+				break
 			}
-			lists = append(lists, ids)
+			baselineLists = append(baselineLists, ids)
 		}
 
-		// Intersect all posting lists → file IDs that contain every trigram
-		fileIDs := posting.Intersect(lists...)
-		if len(fileIDs) == 0 {
-			return nil, nil
+		if !missingInBaseline {
+			fileIDs := posting.Intersect(baselineLists...)
+			for _, id := range fileIDs {
+				if int(id) < len(r.Files) {
+					path := r.Files[id]
+					if !overlay.Tombstones[path] {
+						candidates = append(candidates, path)
+					}
+				}
+			}
 		}
 
-		// Resolve file IDs to paths
-		candidates = make([]string, 0, len(fileIDs))
-		for _, id := range fileIDs {
-			if int(id) < len(r.Files) {
-				candidates = append(candidates, r.Files[id])
+		// 3B: Overlay Candidates
+		var overlayLists [][]uint32
+		missingInOverlay := false
+		for _, t := range decomp.Trigrams {
+			ids := overlay.Posts.Get(t)
+			if len(ids) == 0 {
+				missingInOverlay = true
+				break
+			}
+			overlayLists = append(overlayLists, ids)
+		}
+
+		if !missingInOverlay {
+			fileIDs := posting.Intersect(overlayLists...)
+			for _, id := range fileIDs {
+				// Overlay IDs start from len(r.Files)
+				idx := int(id) - len(r.Files)
+				if idx >= 0 && idx < len(overlay.Files) {
+					candidates = append(candidates, overlay.Files[idx])
+				}
 			}
 		}
 	}

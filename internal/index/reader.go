@@ -15,14 +15,21 @@ import (
 // Reader holds the mmap'd lookup table and an open handle to postings.dat.
 // Use NewReader to open, and Close when done.
 type Reader struct {
-	table    []byte   // mmap'd contents of lookup.idx
-	numSlots uint32   // number of slots in the hash table
-	postings *os.File // open handle to postings.dat for random reads
-	Files    []string // fileID → filepath
+	table    []byte    // mmap'd contents of lookup.idx
+	numSlots uint32    // number of slots in the hash table
+	postings *os.File  // open handle to postings.dat for random reads
+	Files    []string  // fileID → filepath
+	Meta     *Metadata // index metadata (e.g. baseline commit)
 }
 
 // NewReader opens the index written by Write and mmap's the lookup table.
 func NewReader(dir string) (*Reader, error) {
+	// ── metadata.json ───────────────────────────────────────────────────────
+	meta, err := ReadMetadata(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata.json: %w", err)
+	}
+
 	// ── lookup.idx ──────────────────────────────────────────────────────────
 	lookupPath := filepath.Join(dir, "lookup.idx")
 	lf, err := os.Open(lookupPath)
@@ -77,6 +84,7 @@ func NewReader(dir string) (*Reader, error) {
 		numSlots: numSlots,
 		postings: pf,
 		Files:    files,
+		Meta:     meta,
 	}, nil
 }
 

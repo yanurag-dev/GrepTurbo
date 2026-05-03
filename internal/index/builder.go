@@ -17,8 +17,10 @@ const maxFileSize = 1 << 20 // 1 MB — skip files larger than this
 // Builder walks a directory, extracts trigrams from each file,
 // and accumulates an in-memory posting list.
 type Builder struct {
-	Posts posting.List // trigram → sorted []fileID
-	Files []string     // fileID → filepath (index == fileID)
+	Posts   posting.List // trigram → sorted []fileID
+	Files   []string     // fileID → filepath (index == fileID)
+	RootDir string
+	Skip    []string
 }
 
 func NewBuilder() *Builder {
@@ -76,6 +78,13 @@ type extractResult struct {
 // Directories listed in skip are skipped entirely (e.g. "node_modules").
 // Directories and files that fail to read are silently skipped.
 func (b *Builder) Build(rootDir string, skip ...string) error {
+	absRoot, err := filepath.Abs(rootDir)
+	if err != nil {
+		return err
+	}
+	b.RootDir = absRoot
+	b.Skip = skip
+
 	skipSet := make(map[string]bool)
 	for k, v := range defaultSkipDirs {
 		skipSet[k] = v
@@ -126,7 +135,7 @@ func (b *Builder) Build(rootDir string, skip ...string) error {
 		close(done)
 	}()
 
-	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(absRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

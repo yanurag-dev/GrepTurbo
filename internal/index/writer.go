@@ -124,5 +124,5 @@ func Write(b *Builder, dir string) (err error) {
 		return err
 	}
 
-	return nil
+	return WriteMetadata(dir, b.RootDir, b.Skip)
 }
